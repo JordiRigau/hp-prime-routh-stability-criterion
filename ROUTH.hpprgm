@@ -1,0 +1,156 @@
+#pragma mode( separator(.,;) integer(h32) )
+
+// ========================================
+// ROUTH
+// + INTEGRADORS + PARÀMETRES SIMBÒLICS (K)
+// ========================================
+
+#cas
+routh(coefs):=
+BEGIN
+  LOCAL M, n, rows, cols, i, j, k;
+  LOCAL p, a, b, c, d, v;
+  LOCAL help_txt, is_zero_row, aux_order, current_pow;
+  LOCAL sign_changes, current_sign, next_sign;
+  LOCAL integrators, clean_coefs;
+  LOCAL vars, has_params;
+
+  help_txt := "CRITERI DE ROUTH\nInclou integradors i lletres (paràmetres).";
+
+  IF type(coefs) == DOM_STRING THEN
+    IF coefs == "help" OR coefs == "?" THEN
+      MSGBOX(help_txt); RETURN "Ayuda";
+    END;
+  END;
+  IF type(coefs) != DOM_LIST THEN MSGBOX("Error: Llista requerida"); RETURN "Error"; END;
+  
+  print("");
+  print("=== TAULA DE ROUTH ===");
+  
+  // --- DETECCIÓ DE PARÀMETRES SIMBÒLICS ---
+  vars := lname(coefs);
+  has_params := 0;
+  IF size(vars) > 0 THEN
+    has_params := 1;
+    print(">>> Mode Paramètric Activat. Variables: " + vars);
+  END;
+
+  n := size(coefs);
+  
+  // --- GESTIÓ D'INTEGRADORS (Arrels s=0) ---
+  integrators := 0;
+  WHILE n > 1 AND coefs[n] == 0 DO
+    integrators := integrators + 1;
+    n := n - 1;
+  END;
+  
+  IF integrators > 0 THEN
+    print(">>> Detectats " + integrators + " integrador(s) al polinomi.");
+    clean_coefs := {};
+    FOR i FROM 1 TO n DO clean_coefs[i] := exact(coefs[i]); END;
+    coefs := clean_coefs;
+  ELSE
+    FOR i FROM 1 TO n DO coefs[i] := exact(coefs[i]); END;
+  END;
+
+  // --- INICIALITZACIÓ DE LA TAULA ---
+  rows := n;
+  cols := ceiling(n/2);
+  M := makemat(0, rows, cols);
+  
+  j := 1; FOR i FROM 1 TO n STEP 2 DO M[1,j] := coefs[i]; j:=j+1; END;
+  j := 1; FOR i FROM 2 TO n STEP 2 DO M[2,j] := coefs[i]; j:=j+1; END;
+
+  // --- BUCLE PRINCIPAL ---
+  FOR i FROM 3 TO rows DO
+    p := M[i-1,1]; 
+    is_zero_row := 1; 
+    
+    FOR j FROM 1 TO cols-1 DO
+      a := M[i-2,1]; b := M[i-1,j+1];
+      c := M[i-1,1]; d := M[i-2,j+1];
+      
+      v := -(a*b - c*d) / p;
+      v := simplify(v); 
+      
+      M[i,j] := v;
+      if v != 0 then is_zero_row := 0; end;
+    END;
+    
+    // --- GESTIÓ DE SINGULARITATS ---
+    // Cas Singular A (Només si no és paramètric, els paràmetres impedeixen saber si és 0)
+    IF has_params == 0 AND M[i,1] == 0 AND is_zero_row == 0 THEN
+       print(">>> Fila " + i + ": Cas Singular A (Pivot 0).");
+       print("    Hi ha arrels de part real positiva.");
+       print("    SISTEMA INESTABLE. S'atura el càlcul.");
+       print(M);
+       RETURN M; 
+    END;
+
+    // Cas Singular B (Fila de 0s)
+    IF is_zero_row == 1 THEN
+      print(">>> Fila " + i + ": Cas Singular B (Fila de zeros).");
+      print("    Derivant polinomi auxiliar (Fila " + (i-1) + ")...");
+      
+      aux_order := n - i + 1; 
+      FOR k FROM 1 TO cols DO
+        current_pow := aux_order - 2*(k-1);
+        IF current_pow > 0 THEN
+           M[i,k] := simplify(M[i-1,k] * current_pow);
+        ELSE
+           M[i,k] := 0;
+        END;
+      END;
+    END;
+  END;
+
+  // --- ANÀLISI FINAL D'ESTABILITAT ---
+  print("=== RESULTAT FINAL ===");
+  print(M);
+  
+  IF has_params == 1 THEN
+    // MODE SIMBÒLIC
+    print("--- CONDICIONS D'ESTABILITAT ---");
+    print("Tots els elements de la 1a columna han de ser > 0:");
+    FOR i FROM 1 TO rows DO
+      IF M[i,1] != 0 THEN
+         print(" > Fila " + i + ": " + M[i,1] + " > 0");
+      END;
+    END;
+    print("Resol aquestes inecuacions manualment.");
+  ELSE
+    // MODE NUMÈRIC ESTÀNDARD
+    sign_changes := 0;
+    current_sign := sign(M[1,1]);
+    
+    FOR i FROM 2 TO rows DO
+      next_sign := sign(M[i,1]);
+      IF next_sign != 0 AND next_sign != current_sign THEN
+        sign_changes := sign_changes + 1;
+        current_sign := next_sign;
+      END;
+    END;
+
+    print("Canvis de signe (Arrels Re>0): " + sign_changes);
+    
+    IF sign_changes > 0 THEN
+      print("VERDICTE: SISTEMA INESTABLE");
+    ELSE
+      IF integrators == 0 THEN
+        print("VERDICTE: SISTEMA ESTABLE");
+        print("(Si hi ha hagut Cas B, revisar estabilitat marginal)");
+      END;
+      IF integrators == 1 THEN
+        print("VERDICTE: MARGINALMENT ESTABLE");
+        print("(Polinomi base estable + 1 integrador a l'origen)");
+      END;
+      IF integrators > 1 THEN
+        print("VERDICTE: SISTEMA INESTABLE");
+        print("(Múltiples integradors a l'origen)");
+      END;
+    END;
+  END;
+  
+  RETURN M;
+END;
+#end
