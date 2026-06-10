@@ -19,7 +19,7 @@ Programa escrito en PPL (HP Prime Programming Language) para evaluar la estabili
 
 1. Conecta tu HP Prime al ordenador y abre el Connectivity Kit.
 2. Crea un nuevo programa en la calculadora llamado `routh`.
-3. Copia el contenido del archivo `routh.hppgrm` de este repositorio y pégalo en el editor del programa.
+3. Copia el contenido del archivo `routh.hpprgm` de este repositorio y pégalo en el editor del programa.
 4. Guarda y compila.
 
 ---
